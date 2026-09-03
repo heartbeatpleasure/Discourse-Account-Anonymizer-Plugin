@@ -1,0 +1,26 @@
+.account-anonymizer-modal {
+  &__retained-content {
+    margin-bottom: 1.5em;
+  }
+
+  &__password-field {
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25em;
+    }
+
+    input {
+      width: 100%;
+      max-width: 30em;
+    }
+
+    .instructions {
+      margin-top: 0.35em;
+    }
+  }
+
+  &__error {
+    margin-top: 1em;
+  }
+}

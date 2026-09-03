@@ -1,0 +1,11 @@
+en:
+  js:
+    account_anonymizer:
+      button: "Delete Account"
+      title: "Delete account"
+      warning: "Deleting your account is permanent and cannot be undone. Your account will be anonymized and deactivated, and you will no longer be able to access it."
+      retained_content: "Content you have contributed will remain part of existing conversations under an anonymized account."
+      password_label: "Current password"
+      password_help: "Enter your current password to confirm."
+      confirm: "Delete my account"
+      cancel: "Cancel"

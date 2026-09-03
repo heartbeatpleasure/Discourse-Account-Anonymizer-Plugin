@@ -1,0 +1,13 @@
+en:
+  site_settings:
+    account_anonymizer_enabled: "Allow eligible users with existing content to anonymize and deactivate their own account."
+    account_anonymizer_username_prefix: "Prefix used for self-anonymized usernames. A random 8-digit suffix is added automatically."
+    account_anonymizer_anonymize_ip: "Also anonymize IP address data during self-anonymization. Disabled by default to match normal staff anonymization behavior."
+  account_anonymizer:
+    deactivated_by_self_service: "Account deactivated by self-service account anonymization."
+    errors:
+      unavailable: "Account deletion is not available for this account."
+      incorrect_password: "The password you entered is incorrect."
+      password_too_long: "The password is too long."
+      incompatible: "Account deletion is temporarily unavailable because this plugin is not compatible with the current Discourse anonymizer."
+      invalid_username_prefix: "The configured anonymized username prefix is invalid."

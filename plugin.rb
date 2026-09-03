@@ -2,13 +2,12 @@
 
 # name: discourse-account-anonymizer
 # about: Allows eligible users with existing content to permanently anonymize and deactivate their own account.
-# version: 1.0.2
+# version: 1.0.3
 # authors: HeartbeatPleasure
 # url: https://github.com/heartbeatpleasure/discourse-account-anonymizer
 # required_version: 3.5.0
 
 enabled_site_setting :account_anonymizer_enabled
-register_asset "stylesheets/common/account-anonymizer.scss"
 
 module ::DiscourseAccountAnonymizer
   PLUGIN_NAME = "discourse-account-anonymizer"

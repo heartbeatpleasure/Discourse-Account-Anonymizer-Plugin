@@ -70,6 +70,7 @@ export default class AccountAnonymizerDeleteModal extends Component {
           </label>
           <input
             id="account-anonymizer-password"
+            class="input-xxlarge"
             type="password"
             value={{this.password}}
             autocomplete="current-password"

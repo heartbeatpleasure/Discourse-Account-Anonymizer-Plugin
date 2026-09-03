@@ -1,9 +1,11 @@
 import Component from "@glimmer/component";
 import { action } from "@ember/object";
-import { next } from "@ember/runloop";
+import didInsert from "@ember/render-modifiers/modifiers/did-insert";
+import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
+import { cancel, next } from "@ember/runloop";
 import { service } from "@ember/service";
 import { tracked } from "@glimmer/tracking";
-import AccountAnonymizerDeleteModal from "discourse/components/account-anonymizer-delete-modal";
+import AccountAnonymizerDeleteModal from "discourse/plugins/discourse-account-anonymizer/discourse/components/account-anonymizer-delete-modal";
 import { ajax } from "discourse/lib/ajax";
 import getURL from "discourse/lib/get-url";
 import DiscourseURL, { userPath } from "discourse/lib/url";
@@ -17,6 +19,9 @@ export default class AccountAnonymizerDeleteConnector extends Component {
 
   @tracked checking = false;
 
+  nativeDeleteElement = null;
+  hideNativeDeleteTimer = null;
+
   get viewingSelf() {
     return (
       this.currentUser &&
@@ -26,6 +31,39 @@ export default class AccountAnonymizerDeleteConnector extends Component {
 
   get isStaff() {
     return this.currentUser?.admin || this.currentUser?.moderator;
+  }
+
+  @action
+  hideNativeDeleteButton() {
+    // The plugin owns the visible account-deletion control. Hide the core
+    // control after the current render has completed so this does not depend
+    // on a separately compiled stylesheet.
+    this.hideNativeDeleteTimer = next(() => {
+      this.hideNativeDeleteTimer = null;
+
+      const element = document.querySelector(".control-group.delete-account");
+
+      if (!element) {
+        return;
+      }
+
+      this.nativeDeleteElement = element;
+      element.hidden = true;
+    });
+  }
+
+  @action
+  restoreNativeDeleteButton() {
+    if (this.hideNativeDeleteTimer) {
+      cancel(this.hideNativeDeleteTimer);
+      this.hideNativeDeleteTimer = null;
+    }
+
+    if (this.nativeDeleteElement?.isConnected) {
+      this.nativeDeleteElement.hidden = false;
+    }
+
+    this.nativeDeleteElement = null;
   }
 
   @action
@@ -112,7 +150,11 @@ export default class AccountAnonymizerDeleteConnector extends Component {
 
   <template>
     {{#if this.viewingSelf}}
-      <div class="account-anonymizer-controls">
+      <div
+        class="account-anonymizer-controls"
+        {{didInsert this.hideNativeDeleteButton}}
+        {{willDestroy this.restoreNativeDeleteButton}}
+      >
         {{#unless this.isStaff}}
           <div class="control-group account-anonymizer-delete-account">
             <br />

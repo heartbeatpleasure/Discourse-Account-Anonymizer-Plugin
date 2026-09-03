@@ -178,4 +178,76 @@ RSpec.describe "Account Anonymizer" do
     expect(empty_user.reload.active).to eq(true)
     expect(empty_user.email).not_to end_with(UserAnonymizer::EMAIL_SUFFIX)
   end
+
+  describe "security boundaries" do
+    it "rejects ordinary API-key authentication" do
+      api_key = ApiKey.create!(user_id: user.id, created_by_id: Discourse.system_user.id)
+
+      get "/account-anonymizer/status.json", headers: { HTTP_API_KEY: api_key.key }
+
+      expect(response.status).to eq(403)
+      expect(user.reload.active).to eq(true)
+    end
+
+    it "rejects User API keys even when they have the generic write scope" do
+      user_api_key = Fabricate(:user_api_key, user: user)
+      user_api_key.scopes = [UserApiKeyScope.new(name: "write")]
+      user_api_key.save!
+
+      get "/account-anonymizer/status.json", headers: { HTTP_USER_API_KEY: user_api_key.key }
+      expect(response.status).to eq(403)
+
+      post "/account-anonymizer/anonymize.json",
+           params: { password: "correct-password" },
+           headers: { HTTP_USER_API_KEY: user_api_key.key }
+
+      expect(response.status).to eq(403)
+      expect(user.reload.active).to eq(true)
+      expect(user.email).not_to end_with(UserAnonymizer::EMAIL_SUFFIX)
+    end
+
+    it "blocks API-authenticated direct core self-deletion even for a content-free account" do
+      empty_user = Fabricate(:user, password: "correct-password")
+      user_api_key = Fabricate(:user_api_key, user: empty_user)
+      user_api_key.scopes = [UserApiKeyScope.new(name: "write")]
+      user_api_key.save!
+
+      delete "/u/#{empty_user.username}.json",
+             params: { context: "/security-test" },
+             headers: { HTTP_USER_API_KEY: user_api_key.key }
+
+      expect(response.status).to eq(403)
+      expect(User.exists?(empty_user.id)).to eq(true)
+    end
+
+    it "blocks bypassing the plugin through the core self-delete endpoint when content exists" do
+      SiteSetting.delete_user_self_max_post_count = 10
+      original_post_id = post_record.id
+
+      delete "/u/#{user.username}.json", params: { context: "/security-test" }
+
+      expect(response.status).to eq(403)
+      expect(User.exists?(user.id)).to eq(true)
+      expect(Post.with_deleted.find(original_post_id).user_id).to eq(user.id)
+    end
+
+    it "does not let a regular user delete another account through the core endpoint" do
+      delete "/u/#{other_user.username}.json", params: { context: "/security-test" }
+
+      expect(response.status).to eq(403)
+      expect(User.exists?(other_user.id)).to eq(true)
+    end
+
+    it "rejects overlong password input before password hashing" do
+      original_username = user.username
+
+      post "/account-anonymizer/anonymize.json",
+           params: { password: "a" * (User.max_password_length + 1) }
+
+      expect(response.status).to eq(422)
+      expect(user.reload.username).to eq(original_username)
+      expect(user.active).to eq(true)
+    end
+  end
+
 end

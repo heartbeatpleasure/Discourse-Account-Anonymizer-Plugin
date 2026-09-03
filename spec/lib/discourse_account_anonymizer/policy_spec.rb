@@ -50,4 +50,10 @@ RSpec.describe DiscourseAccountAnonymizer::Policy do
     GroupUser.create!(group: group, user: user, owner: true)
     expect(described_class.new(user: user).reason).to eq(:group_owner)
   end
+
+  it "blocks impersonated sessions" do
+    user.is_impersonating = true
+    expect(described_class.new(user: user).reason).to eq(:impersonating)
+  end
+
 end

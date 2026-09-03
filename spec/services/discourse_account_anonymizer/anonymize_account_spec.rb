@@ -28,4 +28,19 @@ RSpec.describe DiscourseAccountAnonymizer::AnonymizeAccount do
   ensure
     DiscourseEvent.off(:user_anonymized, &failing_handler) if failing_handler
   end
+
+  it "still deactivates after committed anonymization when the configured prefix changes unexpectedly" do
+    allow_any_instance_of(DiscourseAccountAnonymizer::AnonymizeAccount).to receive(:verify_anonymized_state!).and_wrap_original do |method, *args|
+      SiteSetting.account_anonymizer_username_prefix = "Different-"
+      method.call(*args)
+    end
+
+    expect { described_class.new(user: user, password: "correct-password").call }.not_to raise_error
+
+    user.reload
+    expect(user.email).to end_with(UserAnonymizer::EMAIL_SUFFIX)
+    expect(user.active).to eq(false)
+    expect(Post.with_deleted.find(post_record.id).user_id).to eq(user.id)
+  end
+
 end

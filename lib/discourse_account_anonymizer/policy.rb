@@ -17,9 +17,12 @@ module DiscourseAccountAnonymizer
       user.present? && user.has_more_posts_than?(0)
     end
 
+    def native_self_delete_blocked?
+      common_reason.present? || has_content?
+    end
+
     def native_delete_allowed?
-      return false if common_reason.present?
-      return false if has_content?
+      return false if native_self_delete_blocked?
 
       guardian.can_delete_user?(user)
     end

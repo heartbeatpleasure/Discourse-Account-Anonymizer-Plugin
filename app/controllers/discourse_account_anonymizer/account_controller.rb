@@ -4,6 +4,7 @@ module DiscourseAccountAnonymizer
   class AccountController < ::ApplicationController
     requires_plugin DiscourseAccountAnonymizer::PLUGIN_NAME
     requires_login
+    before_action :ensure_browser_session!
 
     USER_ATTEMPTS = 5
     IP_ATTEMPTS = 20
@@ -11,7 +12,6 @@ module DiscourseAccountAnonymizer
 
     def status
       raise Discourse::NotFound unless SiteSetting.account_anonymizer_enabled
-      raise Discourse::InvalidAccess.new if is_api?
 
       policy = Policy.new(user: current_user, guardian: guardian)
 
@@ -29,7 +29,6 @@ module DiscourseAccountAnonymizer
 
     def anonymize
       raise Discourse::NotFound unless SiteSetting.account_anonymizer_enabled
-      raise Discourse::InvalidAccess.new if is_api?
 
       password = params.require(:password).to_s
       if password.length > User.max_password_length
@@ -56,6 +55,10 @@ module DiscourseAccountAnonymizer
     end
 
     private
+
+    def ensure_browser_session!
+      raise Discourse::InvalidAccess.new if is_api? || is_user_api?
+    end
 
     def rate_limit!
       RateLimiter.new(

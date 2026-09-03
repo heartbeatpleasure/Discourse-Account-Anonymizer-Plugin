@@ -82,11 +82,19 @@ module DiscourseAccountAnonymizer
     end
 
     def verify_anonymized_state!
-      prefix = SiteSetting.account_anonymizer_username_prefix.to_s
+      raise "Account anonymization did not reach the expected final state" unless anonymized?
 
-      unless anonymized? && @user.username.start_with?(prefix)
-        raise "Account anonymization did not reach the expected final state"
-      end
+      prefix = SiteSetting.account_anonymizer_username_prefix.to_s
+      return if @user.username.start_with?(prefix)
+
+      # The privacy-critical state (anonymized email/credentials) has already
+      # committed. A future Discourse change or a concurrent admin setting
+      # change must not leave that account active merely because the cosmetic
+      # username prefix differs from what we expected. Log the compatibility
+      # anomaly and continue to fail closed by deactivating the account.
+      Rails.logger.error(
+        "[discourse-account-anonymizer] anonymized username prefix mismatch for user #{@user.id}; continuing safe deactivation",
+      )
     end
 
     def deactivate_user!

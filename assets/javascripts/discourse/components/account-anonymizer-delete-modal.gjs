@@ -56,13 +56,19 @@ export default class AccountAnonymizerDeleteModal extends Component {
       class="account-anonymizer-modal"
     >
       <:body>
-        <div class="alert alert-error account-anonymizer-modal__warning">
-          {{i18n "account_anonymizer.warning"}}
-        </div>
+        <div style="padding-top: 0.5rem;">
+          <p>
+            {{i18n "account_anonymizer.warning"}}
+          </p>
 
-        <p class="account-anonymizer-modal__retained-content">
-          {{i18n "account_anonymizer.retained_content"}}
-        </p>
+          <p class="account-anonymizer-modal__retained-content">
+            {{i18n "account_anonymizer.retained_content"}}
+          </p>
+
+          <p>
+            <strong>{{i18n "account_anonymizer.final_warning"}}</strong>
+          </p>
+        </div>
 
         <div class="account-anonymizer-modal__password-field">
           <label for="account-anonymizer-password">

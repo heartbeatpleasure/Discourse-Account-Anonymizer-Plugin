@@ -10,3 +10,4 @@ en:
       confirm: "Delete my account"
       cancel: "Cancel"
       status_error: "Account deletion is temporarily unavailable. Please reload the page and try again."
+      status_changed: "Your account changed while the deletion confirmation was open. Please click Delete My Account again to continue safely."

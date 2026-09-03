@@ -23,12 +23,23 @@ RSpec.describe DiscourseAccountAnonymizer::Policy do
     expect(described_class.new(user: user).reason).to eq(:staff)
   end
 
-  it "does not replace native deletion for an account without content" do
+  it "marks an account without content for native deletion rather than anonymization" do
     empty_user = Fabricate(:user, password: "correct-password")
-    expect(described_class.new(user: empty_user).reason).to eq(:native_delete_available)
+    policy = described_class.new(user: empty_user)
+
+    expect(policy.reason).to eq(:no_content)
+    expect(policy.native_delete_allowed?).to eq(true)
   end
 
-  it "blocks users without a local password" do
+  it "uses content presence rather than the configured native delete post limit" do
+    SiteSetting.delete_user_self_max_post_count = 1
+
+    expect(described_class.new(user: user).has_content?).to eq(true)
+    expect(described_class.new(user: user).allowed?).to eq(true)
+    expect(described_class.new(user: user).native_delete_allowed?).to eq(false)
+  end
+
+  it "blocks users without a local password from anonymization" do
     user.user_password.destroy!
     user.reload
     expect(described_class.new(user: user).reason).to eq(:no_password)

@@ -1,3 +1,10 @@
+// When our self-service button is present, hide Discourse's native account
+// deletion control. The plugin button live-routes to native deletion for truly
+// content-free accounts and to anonymization as soon as content exists.
+body:has(.account-anonymizer-controls) .control-group.delete-account {
+  display: none;
+}
+
 .account-anonymizer-modal {
   &__retained-content {
     margin-bottom: 1.5em;

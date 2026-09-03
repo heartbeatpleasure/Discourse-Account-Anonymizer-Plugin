@@ -25,9 +25,31 @@ RSpec.describe "Account Anonymizer" do
       expect(response.parsed_body["mode"]).to eq("anonymize")
     end
 
+
+    it "returns anonymize for one post even when Discourse would natively allow one post" do
+      SiteSetting.delete_user_self_max_post_count = 1
+
+      get "/account-anonymizer/status.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["mode"]).to eq("anonymize")
+    end
+
+    it "returns native_delete for a truly content-free account when core allows it" do
+      empty_user = Fabricate(:user, password: "correct-password")
+      sign_in(empty_user)
+      SiteSetting.delete_user_self_max_post_count = 1
+
+      get "/account-anonymizer/status.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["mode"]).to eq("native_delete")
+    end
+
     it "re-evaluates eligibility after posts are added in the same signed-in session" do
       fresh_user = Fabricate(:user, password: "correct-password")
       sign_in(fresh_user)
+      SiteSetting.delete_user_self_max_post_count = 1
 
       get "/account-anonymizer/status.json"
       expect(response.status).to eq(200)

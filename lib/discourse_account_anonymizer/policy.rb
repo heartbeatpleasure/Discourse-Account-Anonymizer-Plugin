@@ -13,31 +13,62 @@ module DiscourseAccountAnonymizer
       reason.nil?
     end
 
+    def has_content?
+      user.present? && user.has_more_posts_than?(0)
+    end
+
+    def native_delete_allowed?
+      return false if common_reason.present?
+      return false if has_content?
+
+      guardian.can_delete_user?(user)
+    end
+
     def reason
-      return :disabled unless SiteSetting.account_anonymizer_enabled
-      return :missing_user if user.blank?
+      return common_reason if common_reason.present?
+      return :no_content unless has_content?
       return :incompatible unless Compatibility.compatible?
       return :invalid_username_prefix unless Compatibility.valid_username_prefix?(user)
-      return :staff if user.staff?
-      return :impersonating if user.respond_to?(:is_impersonating) && user.is_impersonating
-      return :anonymous if user.anonymous?
-      return :staged if user.staged?
-      return :inactive unless user.active?
-      return :unapproved if SiteSetting.must_approve_users && !user.approved?
-      return :suspended if user.suspended?
-      return :silenced if user.silenced?
       return :no_password unless user.has_password?
       return :unsupported_auth if SiteSetting.enable_discourse_connect || !SiteSetting.enable_local_logins
-      return :already_anonymized if anonymized?
-      return :native_delete_available if guardian.can_delete_user?(user)
-      return :no_content unless user.has_more_posts_than?(0)
-      return :group_owner if owns_group?
-      return :pending_review if pending_review?
 
       nil
     end
 
     private
+
+    def common_reason
+      return @common_reason if defined?(@common_reason)
+
+      @common_reason =
+        if !SiteSetting.account_anonymizer_enabled
+          :disabled
+        elsif user.blank?
+          :missing_user
+        elsif user.staff?
+          :staff
+        elsif user.respond_to?(:is_impersonating) && user.is_impersonating
+          :impersonating
+        elsif user.anonymous?
+          :anonymous
+        elsif user.staged?
+          :staged
+        elsif !user.active?
+          :inactive
+        elsif SiteSetting.must_approve_users && !user.approved?
+          :unapproved
+        elsif user.suspended?
+          :suspended
+        elsif user.silenced?
+          :silenced
+        elsif anonymized?
+          :already_anonymized
+        elsif owns_group?
+          :group_owner
+        elsif pending_review?
+          :pending_review
+        end
+    end
 
     def anonymized?
       user.email&.ends_with?(::UserAnonymizer::EMAIL_SUFFIX)

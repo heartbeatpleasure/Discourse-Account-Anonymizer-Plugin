@@ -16,9 +16,9 @@ module DiscourseAccountAnonymizer
       policy = Policy.new(user: current_user, guardian: guardian)
 
       mode =
-        if policy.allowed?
-          "anonymize"
-        elsif guardian.can_delete_user?(current_user)
+        if policy.has_content?
+          policy.allowed? ? "anonymize" : "unavailable"
+        elsif policy.native_delete_allowed?
           "native_delete"
         else
           "unavailable"

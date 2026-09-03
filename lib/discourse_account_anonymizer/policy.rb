@@ -13,23 +13,8 @@ module DiscourseAccountAnonymizer
       reason.nil?
     end
 
-    def has_content?
-      user.present? && user.has_more_posts_than?(0)
-    end
-
-    def native_self_delete_blocked?
-      common_reason.present? || has_content?
-    end
-
-    def native_delete_allowed?
-      return false if native_self_delete_blocked?
-
-      guardian.can_delete_user?(user)
-    end
-
     def reason
       return common_reason if common_reason.present?
-      return :no_content unless has_content?
       return :incompatible unless Compatibility.compatible?
       return :invalid_username_prefix unless Compatibility.valid_username_prefix?(user)
       return :no_password unless user.has_password?
@@ -64,26 +49,15 @@ module DiscourseAccountAnonymizer
           :suspended
         elsif user.silenced?
           :silenced
-        elsif anonymized?
+        elsif State.self_anonymization_history?(user)
           :already_anonymized
-        elsif owns_group?
-          :group_owner
-        elsif pending_review?
-          :pending_review
+        elsif pending_account_review?
+          :pending_account_review
         end
     end
 
-    def anonymized?
-      user.email&.ends_with?(::UserAnonymizer::EMAIL_SUFFIX)
-    end
-
-    def owns_group?
-      GroupUser.where(user_id: user.id, owner: true).exists?
-    end
-
-    def pending_review?
-      Reviewable.pending.where(target_created_by_id: user.id).exists? ||
-        ReviewableUser.pending.where(target: user).exists?
+    def pending_account_review?
+      ReviewableUser.pending.where(target: user).exists?
     end
   end
 end

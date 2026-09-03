@@ -1,6 +1,6 @@
-// When our self-service button is present, hide Discourse's native account
-// deletion control. The plugin button live-routes to native deletion for truly
-// content-free accounts and to anonymization as soon as content exists.
+// While this plugin owns the account-removal surface, hide Discourse's native
+// hard-delete control. The plugin never self-hard-deletes accounts; when
+// self-service is enabled it routes eligible users through anonymization.
 body:has(.account-anonymizer-controls) .control-group.delete-account {
   display: none;
 }

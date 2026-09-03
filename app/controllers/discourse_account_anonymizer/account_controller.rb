@@ -9,6 +9,24 @@ module DiscourseAccountAnonymizer
     IP_ATTEMPTS = 20
     RATE_LIMIT_WINDOW = 15.minutes
 
+    def status
+      raise Discourse::NotFound unless SiteSetting.account_anonymizer_enabled
+      raise Discourse::InvalidAccess.new if is_api?
+
+      policy = Policy.new(user: current_user, guardian: guardian)
+
+      mode =
+        if policy.allowed?
+          "anonymize"
+        elsif guardian.can_delete_user?(current_user)
+          "native_delete"
+        else
+          "unavailable"
+        end
+
+      render json: { mode: mode }
+    end
+
     def anonymize
       raise Discourse::NotFound unless SiteSetting.account_anonymizer_enabled
       raise Discourse::InvalidAccess.new if is_api?

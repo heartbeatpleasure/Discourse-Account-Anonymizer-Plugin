@@ -1,7 +1,7 @@
 plugins:
   account_anonymizer_enabled:
     default: true
-    client: false
+    client: true
   account_anonymizer_username_prefix:
     default: "Deleted-"
     client: false

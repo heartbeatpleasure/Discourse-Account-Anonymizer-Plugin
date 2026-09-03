@@ -13,7 +13,41 @@ RSpec.describe "Account Anonymizer" do
     SiteSetting.account_anonymizer_anonymize_ip = false
     SiteSetting.enable_local_logins = true
     SiteSetting.enable_discourse_connect = false
+    SiteSetting.delete_user_self_max_post_count = 0
     sign_in(user)
+  end
+
+  describe "GET /account-anonymizer/status.json" do
+    it "returns anonymize for an eligible user with content" do
+      get "/account-anonymizer/status.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["mode"]).to eq("anonymize")
+    end
+
+    it "re-evaluates eligibility after posts are added in the same signed-in session" do
+      fresh_user = Fabricate(:user, password: "correct-password")
+      sign_in(fresh_user)
+
+      get "/account-anonymizer/status.json"
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["mode"]).to eq("native_delete")
+
+      3.times { Fabricate(:post, user: fresh_user) }
+
+      get "/account-anonymizer/status.json"
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["mode"]).to eq("anonymize")
+    end
+
+    it "returns unavailable for staff" do
+      user.update!(moderator: true)
+
+      get "/account-anonymizer/status.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["mode"]).to eq("unavailable")
+    end
   end
 
   it "anonymizes and deactivates only the current user while preserving content" do

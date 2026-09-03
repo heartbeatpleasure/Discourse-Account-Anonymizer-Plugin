@@ -9,3 +9,4 @@ en:
       password_help: "Enter your current password to confirm."
       confirm: "Delete my account"
       cancel: "Cancel"
+      status_error: "Account deletion is temporarily unavailable. Please reload the page and try again."

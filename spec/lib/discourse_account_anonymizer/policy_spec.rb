@@ -10,6 +10,7 @@ RSpec.describe DiscourseAccountAnonymizer::Policy do
     SiteSetting.account_anonymizer_username_prefix = "Deleted-"
     SiteSetting.enable_local_logins = true
     SiteSetting.enable_discourse_connect = false
+    SiteSetting.delete_user_self_max_post_count = 0
     Fabricate(:post, user: user)
   end
 

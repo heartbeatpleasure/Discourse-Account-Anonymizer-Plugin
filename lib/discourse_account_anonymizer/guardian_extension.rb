@@ -16,5 +16,19 @@ module DiscourseAccountAnonymizer
 
       super
     end
+
+    # The model-level activation guard remains the final safety net, but core
+    # admin UI/API authorization should also report the irreversible state
+    # correctly. This prevents staff from being offered an Activate action that
+    # can only fail, without changing activation permissions for normal inactive
+    # accounts.
+    def can_activate?(target_user)
+      if is_staff? && target_user.present? && !target_user.active? &&
+           DiscourseAccountAnonymizer::State.self_anonymization_history?(target_user)
+        return false
+      end
+
+      super
+    end
   end
 end

@@ -67,6 +67,7 @@ module DiscourseAccountAnonymizer
         @login_emails |= current_login_emails
         original_username = @user.username
         options = anonymizer_options
+        @anonymized_ip = options[:anonymize_ip]
 
         begin
           UserAnonymizer.new(@user, @user, options).make_anonymous
@@ -143,6 +144,7 @@ module DiscourseAccountAnonymizer
         )
       ensure
         revoke_residual_credentials!
+        anonymize_residual_ip_logs!
       end
     end
 
@@ -252,6 +254,11 @@ module DiscourseAccountAnonymizer
     end
 
     def revoke_reactivation_credentials!
+      # Pending core email-change records retain old/new address PII and can
+      # participate in an already-started confirmation flow. Remove only the
+      # records owned by this user; do not treat an unconfirmed new_email as a
+      # historic account email, because it may belong to somebody else.
+      revoke_email_change_requests!
       EmailToken.where(user_id: @user.id).destroy_all
       revoke_email_login_codes!
     end
@@ -261,14 +268,32 @@ module DiscourseAccountAnonymizer
       # session/reactivation-sensitive cleanup after finalization closes the
       # narrow window in which a concurrently finishing reset/login flow could
       # have created fresh credentials while anonymization was in progress.
+      #
+      # Keep each cleanup independent. Once anonymization has committed, one
+      # failing table/extension must never prevent the remaining credential
+      # classes from being revoked.
+      best_effort_finalization("email change requests") { revoke_email_change_requests! }
+      best_effort_finalization("email tokens") { revoke_email_tokens! }
+      best_effort_finalization("user auth tokens") { revoke_user_auth_tokens! }
+      best_effort_finalization("passwordless login codes") { revoke_email_login_codes! }
+    end
+
+    def revoke_email_change_requests!
+      return unless defined?(::EmailChangeRequest)
+
+      # Do not execute belongs_to dependent callbacks here. All EmailToken
+      # records actually owned by this user are revoked separately below, so a
+      # corrupted/mis-associated change request can never cascade into a token
+      # belonging to another account.
+      EmailChangeRequest.where(user_id: @user.id).delete_all
+    end
+
+    def revoke_email_tokens!
       EmailToken.where(user_id: @user.id).destroy_all
+    end
+
+    def revoke_user_auth_tokens!
       UserAuthToken.where(user_id: @user.id).destroy_all
-      revoke_email_login_codes!
-    rescue StandardError => error
-      Discourse.warn_exception(
-        error,
-        message: "[discourse-account-anonymizer] failed to revoke residual credentials for user #{@user.id}",
-      )
     end
 
     def revoke_email_login_codes!
@@ -279,15 +304,31 @@ module DiscourseAccountAnonymizer
       EmailLoginCode.where("lower(email) IN (?)", emails).delete_all
     end
 
+    def anonymize_residual_ip_logs!
+      return if @anonymized_ip.blank?
+      return unless defined?(::UserAuthTokenLog)
+
+      best_effort_finalization("auth token log IP anonymization") do
+        UserAuthTokenLog.where(user_id: @user.id).where.not(client_ip: nil).update_all(
+          client_ip: @anonymized_ip,
+        )
+      end
+    end
+
     def reenqueue_core_cleanup(original_username, original_emails, options)
-      begin
+      # These are two independent pieces of core post-transaction cleanup. If
+      # username propagation fails again, the heavier anonymize_user job must
+      # still be offered to Sidekiq (and vice versa).
+      best_effort_finalization("username propagation") do
         UsernameChanger.update_username(
           user_id: @user.id,
           old_username: original_username,
           new_username: @user.username,
           avatar_template: @user.avatar_template,
         )
+      end
 
+      best_effort_finalization("core anonymize_user job enqueue") do
         Jobs.enqueue(
           :anonymize_user,
           user_id: @user.id,
@@ -295,12 +336,16 @@ module DiscourseAccountAnonymizer
           prev_username: original_username,
           anonymize_ip: options[:anonymize_ip],
         )
-      rescue StandardError => cleanup_error
-        Discourse.warn_exception(
-          cleanup_error,
-          message: "[discourse-account-anonymizer] failed to re-enqueue core cleanup for user #{@user.id}",
-        )
       end
+    end
+
+    def best_effort_finalization(step)
+      yield
+    rescue StandardError => error
+      Discourse.warn_exception(
+        error,
+        message: "[discourse-account-anonymizer] failed #{step} finalization for user #{@user.id}",
+      )
     end
   end
 end

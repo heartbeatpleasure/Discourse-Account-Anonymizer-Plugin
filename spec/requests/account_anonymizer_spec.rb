@@ -219,13 +219,55 @@ RSpec.describe "Account Anonymizer" do
     expect(user.reload.ip_address).to eq(original_ip)
   end
 
-  it "anonymizes the user IP when explicitly enabled" do
+  it "anonymizes the user IP when explicitly enabled and blocks a late deferred IP rewrite" do
     SiteSetting.account_anonymizer_anonymize_ip = true
+    old_ip = user.ip_address
 
     post "/account-anonymizer/anonymize.json", params: { password: "correct-password" }
 
     expect(response.status).to eq(200)
     expect(user.reload.ip_address.to_s).to eq("0.0.0.0")
+
+    # Simulate the deferred update scheduled by DefaultCurrentUserProvider at
+    # the start of the request completing after anonymization committed.
+    User.update_ip_address!(
+      user.id,
+      new_ip: "203.0.113.99",
+      old_ip: old_ip,
+    )
+
+    expect(user.reload.ip_address.to_s).to eq("0.0.0.0")
+    expect(UserIpAddressHistory.where(user_id: user.id)).to be_empty
+  end
+
+  it "anonymizes retained authentication-log IPs when IP anonymization is enabled" do
+    SiteSetting.account_anonymizer_anonymize_ip = true
+    UserAuthTokenLog.create!(
+      action: "generate",
+      user_id: user.id,
+      client_ip: "198.51.100.42",
+    )
+
+    post "/account-anonymizer/anonymize.json", params: { password: "correct-password" }
+
+    expect(response.status).to eq(200)
+    expect(
+      UserAuthTokenLog.where(user_id: user.id).where.not(client_ip: "0.0.0.0"),
+    ).to be_empty
+  end
+
+  it "keeps ordinary user IP updates unchanged when IP anonymization is enabled" do
+    SiteSetting.account_anonymizer_anonymize_ip = true
+    ordinary_user = Fabricate(:user)
+    old_ip = ordinary_user.ip_address
+
+    User.update_ip_address!(
+      ordinary_user.id,
+      new_ip: "203.0.113.100",
+      old_ip: old_ip,
+    )
+
+    expect(ordinary_user.reload.ip_address.to_s).to eq("203.0.113.100")
   end
 
   it "revokes pre-existing email tokens and passwordless login codes synchronously" do
@@ -359,6 +401,24 @@ RSpec.describe "Account Anonymizer" do
 
       expect(response.status).to eq(403)
       expect(User.exists?(other_user.id)).to eq(true)
+    end
+
+    it "prevents admin activation of an irreversibly self-anonymized account" do
+      post "/account-anonymizer/anonymize.json", params: { password: "correct-password" }
+      expect(response.status).to eq(200)
+
+      user.reload
+      expect(user.active).to eq(false)
+      expect(user.email_tokens).to be_empty
+
+      admin = Fabricate(:admin)
+      sign_in(admin)
+
+      put "/admin/users/#{user.id}/activate.json"
+
+      expect(response.status).to eq(403)
+      expect(user.reload.active).to eq(false)
+      expect(user.email_tokens).to be_empty
     end
 
     it "keeps normal admin deletion of another eligible user intact" do

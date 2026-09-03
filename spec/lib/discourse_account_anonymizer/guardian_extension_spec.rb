@@ -30,6 +30,23 @@ RSpec.describe DiscourseAccountAnonymizer::GuardianExtension do
     expect(Guardian.new(admin).can_delete_user?(other_user)).to eq(true)
   end
 
+  it "blocks staff activation of a self-anonymized inactive account" do
+    user.update!(active: false)
+    UserHistory.create!(
+      action: UserHistory.actions[:anonymize_user],
+      target_user_id: user.id,
+      acting_user_id: user.id,
+    )
+
+    expect(Guardian.new(admin).can_activate?(user)).to eq(false)
+  end
+
+  it "does not alter staff activation of an ordinary inactive account" do
+    other_user.update!(active: false)
+
+    expect(Guardian.new(admin).can_activate?(other_user)).to eq(true)
+  end
+
   it "keeps hard self-deletion blocked when self-service anonymization is disabled" do
     SiteSetting.account_anonymizer_enabled = false
     expect(Guardian.new(user).can_delete_user?(user)).to eq(false)

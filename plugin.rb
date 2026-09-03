@@ -2,7 +2,7 @@
 
 # name: discourse-account-anonymizer
 # about: Allows eligible users to permanently anonymize and deactivate their own account without self-service hard deletion.
-# version: 1.0.6
+# version: 1.0.7
 # authors: HeartbeatPleasure
 # url: https://github.com/heartbeatpleasure/discourse-account-anonymizer
 # required_version: 3.5.0
@@ -42,6 +42,26 @@ after_initialize do
     next unless DiscourseAccountAnonymizer::State.self_anonymization_history?(id)
 
     errors.add(:active, I18n.t("account_anonymizer.errors.irreversible"))
+  end
+
+  # If IP anonymization is enabled, prevent a deferred request activity update
+  # from writing the just-used browser IP back after the core anonymizer has
+  # committed. Discourse intentionally exposes this modifier around
+  # User.update_ip_address!, so use that extension point rather than patching
+  # the core method. Preserve the incoming modifier value to compose safely
+  # with other plugins.
+  register_modifier(:user_can_update_ip_address) do |permission|
+    next permission unless SiteSetting.account_anonymizer_anonymize_ip
+    next permission unless permission.is_a?(Hash)
+
+    user_id = permission[:user_id] || permission["user_id"]
+    next permission if user_id.blank?
+
+    if DiscourseAccountAnonymizer::State.self_anonymization_history?(user_id)
+      false
+    else
+      permission
+    end
   end
 
   # Discourse's CleanUpInactiveUsers job can hard-delete old TL0 users without

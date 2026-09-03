@@ -169,6 +169,87 @@ RSpec.describe DiscourseAccountAnonymizer::AnonymizeAccount do
     expect(user.reload.active).to eq(false)
   end
 
+  it "removes pending core email-change records without treating an unconfirmed new address as another account email" do
+    pending_new_email = "pending-new-address@example.com"
+    request =
+      EmailChangeRequest.create!(
+        user: user,
+        requested_by: user,
+        old_email: user.email,
+        new_email: pending_new_email,
+        change_state: EmailChangeRequest.states[:authorizing_new],
+      )
+
+    # A passwordless code for an unconfirmed destination address may belong to
+    # a different/future account and must not be swept up by this user's cleanup.
+    EmailLoginCode.generate!(email: pending_new_email)
+
+    expect { described_class.new(user: user, password: "correct-password").call }.not_to raise_error
+
+    expect(EmailChangeRequest.where(id: request.id)).not_to exist
+    expect(EmailLoginCode.for_email(pending_new_email)).to exist
+    expect(user.reload.active).to eq(false)
+  end
+
+  it "does not cascade-delete an email token owned by another user from a malformed email-change request" do
+    other_user = Fabricate(:user)
+    foreign_token =
+      other_user.email_tokens.create!(
+        email: other_user.email,
+        scope: EmailToken.scopes[:email_update],
+      )
+
+    malformed_request =
+      EmailChangeRequest.create!(
+        user: user,
+        requested_by: user,
+        old_email: user.email,
+        new_email: "pending-address@example.com",
+        change_state: EmailChangeRequest.states[:authorizing_new],
+        new_email_token: foreign_token,
+      )
+
+    service = described_class.new(user: user, password: "correct-password")
+    service.send(:revoke_email_change_requests!)
+
+    expect(EmailChangeRequest.where(id: malformed_request.id)).not_to exist
+    expect(EmailToken.where(id: foreign_token.id)).to exist
+  end
+
+  it "continues residual credential revocation when one cleanup step fails" do
+    service = described_class.new(user: user, password: "correct-password")
+
+    allow(Discourse).to receive(:warn_exception)
+    expect(service).to receive(:revoke_email_change_requests!).once
+    allow(service).to receive(:revoke_email_tokens!).and_raise("intentional email-token failure")
+    expect(service).to receive(:revoke_user_auth_tokens!).once
+    expect(service).to receive(:revoke_email_login_codes!).once
+
+    expect { service.send(:revoke_residual_credentials!) }.not_to raise_error
+  end
+
+  it "still enqueues core anonymize cleanup when username propagation retry fails" do
+    service = described_class.new(user: user, password: "correct-password")
+    original_username = user.username
+    original_email = user.email
+
+    allow(Discourse).to receive(:warn_exception)
+    allow(UsernameChanger).to receive(:update_username).and_raise(
+      "intentional username propagation failure",
+    )
+    expect(Jobs).to receive(:enqueue).with(
+      :anonymize_user,
+      user_id: user.id,
+      prev_emails: [original_email],
+      prev_username: original_username,
+      anonymize_ip: nil,
+    )
+
+    expect do
+      service.send(:reenqueue_core_cleanup, original_username, [original_email], {})
+    end.not_to raise_error
+  end
+
   it "does not alter Discourse core staff anonymization username behavior" do
     target = Fabricate(:user)
     admin = Fabricate(:admin)

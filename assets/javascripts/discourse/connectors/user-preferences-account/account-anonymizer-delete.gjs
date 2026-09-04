@@ -5,7 +5,7 @@ import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
 import { cancel, next } from "@ember/runloop";
 import { service } from "@ember/service";
 import { tracked } from "@glimmer/tracking";
-import AccountAnonymizerDeleteModal from "discourse/plugins/discourse-account-anonymizer/discourse/components/account-anonymizer-delete-modal";
+import AccountAnonymizerDeleteModal from "discourse/plugins/Discourse-Account-Anonymizer-Plugin/discourse/components/account-anonymizer-delete-modal";
 import { ajax } from "discourse/lib/ajax";
 import DButton from "discourse/ui-kit/d-button";
 import { i18n } from "discourse-i18n";

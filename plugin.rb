@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-# name: discourse-account-anonymizer
+# name: Discourse-Account-Anonymizer-Plugin
 # about: Allows eligible users to permanently anonymize and deactivate their own account without self-service hard deletion.
-# version: 1.0.7
+# version: 1.0.8
 # authors: HeartbeatPleasure
-# url: https://github.com/heartbeatpleasure/discourse-account-anonymizer
+# url: https://github.com/heartbeatpleasure/Discourse-Account-Anonymizer-Plugin
 # required_version: 3.5.0
 
 # Do not use enabled_site_setting here. The setting controls whether NEW
@@ -13,7 +13,7 @@
 # installed, even if self-service is later switched off.
 
 module ::DiscourseAccountAnonymizer
-  PLUGIN_NAME = "discourse-account-anonymizer"
+  PLUGIN_NAME = "Discourse-Account-Anonymizer-Plugin"
 end
 
 after_initialize do
